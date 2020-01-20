@@ -5,7 +5,7 @@
 
 """Replace the models provided by the Keras applications module"""
 
-from keras.layers import \
+from tensorflow.compat.v1.keras.layers import \
     Activation,          \
     AveragePooling2D,    \
     Conv2D,              \
@@ -14,8 +14,8 @@ from keras.layers import \
     Input,               \
     MaxPooling2D,        \
     add
-from keras.models import Model
-from keras.utils.data_utils import get_file
+from tensorflow.keras.models import Model
+from tensorflow.keras.utils import get_file
 
 from .layers import StatsBatchNorm
 

@@ -5,7 +5,7 @@
 
 import unittest
 
-from keras.models import Model
+from tensorflow.keras.models import Model
 import numpy as np
 
 from importance_sampling.models import wide_resnet

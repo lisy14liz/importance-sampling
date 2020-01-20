@@ -3,8 +3,8 @@
 # Written by Angelos Katharopoulos <angelos.katharopoulos@idiap.ch>
 #
 
-from keras import backend as K
-from keras.layers import    \
+from tensorflow.keras import backend as K
+from tensorflow.compat.v1.keras.layers import    \
     Activation,             \
     AveragePooling2D,       \
     BatchNormalization,     \
@@ -22,9 +22,9 @@ from keras.layers import    \
     TimeDistributed,        \
     add,                    \
     concatenate
-from keras.models import Model, Sequential
-from keras.optimizers import SGD
-from keras.regularizers import l2
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.regularizers import l2
 
 from .layers import       \
     BatchRenormalization, \

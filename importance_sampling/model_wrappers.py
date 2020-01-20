@@ -7,9 +7,10 @@ from functools import partial
 import sys
 
 from blinker import signal
-from keras import backend as K
-from keras.layers import Input, Layer, multiply
-from keras.models import Model, clone_model
+import tensorflow as tf
+from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Input, Layer, multiply
+from tensorflow.keras.models import Model, clone_model
 import numpy as np
 
 from .layers import GradientNormLayer, LossLayer, MetricLayer
@@ -258,7 +259,7 @@ class OracleWrapper(ModelWrapper):
         if hasattr(model, "metrics_updates"):
             metrics_updates = model.metrics_updates
         learning_phase = []
-        if weighted_loss_model._uses_learning_phase:
+        if tf.keras.backend.learning_phase():
             learning_phase.append(K.learning_phase())
         inputs = _tolist(model.get_input_at(0)) + [y_true, pred_score] + \
             learning_phase
@@ -380,7 +381,7 @@ class SVRGWrapper(ModelWrapper):
         if hasattr(self.model, "metrics_updates"):
             metrics_updates = self.model.metrics_updates
         learning_phase = []
-        if loss._uses_learning_phase:
+        if tf.keras.backend.learning_phase():
             learning_phase.append(K.learning_phase())
         inputs = inputs + [y_true] + learning_phase
         outputs = [loss_mean, loss] + metrics

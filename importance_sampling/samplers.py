@@ -6,9 +6,9 @@
 from functools import partial
 
 from blinker import signal
-from keras.layers import Dense, Embedding, Flatten, Input, LSTM, Masking, \
+from tensorflow.keras.layers import Dense, Embedding, Flatten, Input, LSTM, Masking, \
     concatenate
-from keras.models import Model
+from tensorflow.keras.models import Model
 import numpy as np
 
 

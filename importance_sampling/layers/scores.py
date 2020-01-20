@@ -5,9 +5,9 @@
 
 from functools import reduce
 
-from keras import backend as K
-from keras import objectives
-from keras.layers import Layer
+from tensorflow.keras import backend as K
+import tensorflow.keras.losses
+from tensorflow.keras.layers import Layer
 
 
 def _per_sample_loss(loss_function, mask, x):
@@ -51,7 +51,7 @@ class LossLayer(Layer):
     """
     def __init__(self, loss, **kwargs):
         self.supports_masking = True
-        self.loss = objectives.get(loss)
+        self.loss = tensorflow.keras.losses.get(loss)
 
         super(LossLayer, self).__init__(**kwargs)
 
@@ -91,7 +91,7 @@ class GradientNormLayer(Layer):
     def __init__(self, parameter_list, loss, fast=False, **kwargs):
         self.supports_masking = True
         self.parameter_list = parameter_list
-        self.loss = objectives.get(loss)
+        self.loss = tensorflow.keras.losses.get(loss)
         self.fast = fast
 
         super(GradientNormLayer, self).__init__(**kwargs)

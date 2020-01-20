@@ -5,8 +5,8 @@
 
 import unittest
 
-from keras.layers import Activation, Embedding, LSTM
-from keras.models import Sequential
+from tensorflow.keras.layers import Activation, Embedding, LSTM
+from tensorflow.keras.models import Sequential
 import numpy as np
 
 from importance_sampling.training import ImportanceTraining

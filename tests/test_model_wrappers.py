@@ -7,9 +7,9 @@ from contextlib import contextmanager
 import unittest
 
 from blinker import signal
-from keras import backend as K
-from keras.layers import Activation, Dense, Input, Lambda, dot
-from keras.models import Sequential, Model
+from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Activation, Dense, Input, Lambda, dot
+from tensorflow.keras.models import Sequential, Model
 import numpy as np
 
 from importance_sampling.model_wrappers import OracleWrapper

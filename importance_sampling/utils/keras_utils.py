@@ -7,8 +7,8 @@ from functools import reduce
 from math import ceil
 
 import h5py
-from keras import backend as K
-from keras.utils.data_utils import Sequence
+from tensorflow.keras import backend as K
+from tensorflow.keras.utils import Sequence
 import numpy as np
 
 

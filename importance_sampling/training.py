@@ -5,9 +5,10 @@
 
 import sys
 
-from keras.callbacks import BaseLogger, CallbackList, History, ProgbarLogger
-from keras.layers import Dropout, BatchNormalization
-from keras.utils import Sequence
+from tensorflow.python.keras.callbacks import CallbackList
+from tensorflow.keras.callbacks import BaseLogger, History, ProgbarLogger
+from tensorflow.keras.layers import Dropout, BatchNormalization
+from tensorflow.keras.utils import Sequence
 import numpy as np
 from blinker import signal
 

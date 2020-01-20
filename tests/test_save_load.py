@@ -8,9 +8,9 @@ import shutil
 import tempfile
 import unittest
 
-from keras.callbacks import ModelCheckpoint
-from keras.layers import Dense
-from keras.models import Sequential
+from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.models import Sequential
 import numpy as np
 
 from importance_sampling.training import ImportanceTraining

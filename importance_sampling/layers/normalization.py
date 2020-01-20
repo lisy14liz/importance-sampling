@@ -3,9 +3,9 @@
 # Written by Angelos Katharopoulos <angelos.katharopoulos@idiap.ch>
 #
 
-from keras import backend as K
-from keras.engine import Layer
-from keras import initializers
+from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Layer
+from tensorflow.keras import initializers
 
 from ..utils.tf import tf
 
@@ -100,7 +100,7 @@ class BatchRenormalization(_BaseNormalization):
     def _moments(self, x):
         axes = range(len(K.int_shape(x))-1)
         if K.backend() == "tensorflow":
-            return tf.nn.moments(x, axes)
+            return tf.nn.moments(x=x, axes=axes)
         else:
             # TODO: Maybe the following can be optimized a bit?
             mean = K.mean(K.reshape(x, (-1, self.dim)), axis=0)

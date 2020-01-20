@@ -16,12 +16,12 @@ from .tf import tf
 if K.backend() == "tensorflow":
     TF_THREADS = int(os.environ.get("TF_THREADS", cpu_count()))
 
-    config = tf.ConfigProto(
+    config = tf.compat.v1.ConfigProto(
         intra_op_parallelism_threads=TF_THREADS,
         inter_op_parallelism_threads=TF_THREADS,
         device_count={"CPU": TF_THREADS}
     )
-    session = tf.Session(config=config)
+    session = tf.compat.v1.Session(config=config)
     K.set_session(session)
 
 
@@ -34,4 +34,4 @@ def with_tensorflow(f):
 
 @with_tensorflow
 def set_random_seed(tf, seed):
-    return tf.set_random_seed(seed)
+    return tf.compat.v1.set_random_seed(seed)

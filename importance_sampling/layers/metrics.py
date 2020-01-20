@@ -5,9 +5,9 @@
 
 from functools import reduce
 
-from keras import backend as K
-from keras.engine import Layer
-from keras.metrics import categorical_accuracy, binary_accuracy, \
+from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Layer
+from tensorflow.keras.metrics import categorical_accuracy, binary_accuracy, \
     get as get_metric, sparse_categorical_accuracy
 
 from ..utils.functional import compose

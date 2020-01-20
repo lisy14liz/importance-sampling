@@ -15,11 +15,10 @@ import sys
 from tempfile import TemporaryFile
 from threading import Condition, Lock, Thread
 
-from keras.applications.resnet50 import preprocess_input
-from keras.datasets import cifar10, cifar100, mnist
-from keras.preprocessing.image import ImageDataGenerator
-from keras.utils import np_utils
-from keras.utils.generic_utils import Progbar
+from tensorflow.keras.applications.resnet50 import preprocess_input
+from tensorflow.keras.datasets import cifar10, cifar100, mnist
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import tensorflow.keras.utils
 import numpy as np
 
 from .utils.functional import compose
@@ -188,8 +187,8 @@ class InMemoryDataset(BaseDataset):
 
         # are the targets to be made one hot vectors
         if categorical:
-            self._y_train = np_utils.to_categorical(y_train)
-            self._y_test = np_utils.to_categorical(y_test)
+            self._y_train = tensorflow.keras.utils.to_categorical(y_train)
+            self._y_test = tensorflow.keras.utils.to_categorical(y_test)
             self._output_size = self._y_train.shape[1]
 
         # handle sparse output classification
@@ -633,7 +632,7 @@ class PennTreeBank(BaseDataset):
 
             # Encode the strings to numbers
             if verbose:
-                prog = Progbar(len(train) + len(test))
+                prog = tensorflow.keras.utils.Progbar(len(train) + len(test))
             for i, s in enumerate(train):
                 xi, yi = self._encode(s, V, context)
                 x_train = np.vstack([x_train, xi])

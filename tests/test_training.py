@@ -5,10 +5,10 @@
 
 import unittest
 
-from keras import backend as K
-from keras.callbacks import LambdaCallback
-from keras.layers import Dense, Input, dot
-from keras.models import Model, Sequential
+from tensorflow.keras import backend as K
+from tensorflow.keras.callbacks import LambdaCallback
+from tensorflow.keras.layers import Dense, Input, dot
+from tensorflow.keras.models import Model, Sequential
 import numpy as np
 
 from importance_sampling.training import ImportanceTraining, \

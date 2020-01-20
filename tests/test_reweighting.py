@@ -5,8 +5,8 @@
 
 import unittest
 
-from keras.layers import Input
-from keras.models import Model
+from tensorflow.keras.layers import Input
+from tensorflow.keras.models import Model
 import numpy as np
 
 from importance_sampling.reweighting import BiasedReweightingPolicy, \

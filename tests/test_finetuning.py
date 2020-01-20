@@ -5,9 +5,9 @@
 
 import unittest
 
-from keras.applications import Xception
-from keras.layers import Dense, Activation
-from keras.models import Model
+from tensorflow.keras.applications import Xception
+from tensorflow.keras.layers import Dense, Activation
+from tensorflow.keras.models import Model
 import numpy as np
 
 from importance_sampling.training import ImportanceTraining

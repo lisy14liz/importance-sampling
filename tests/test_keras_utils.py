@@ -6,8 +6,8 @@
 from tempfile import NamedTemporaryFile
 import unittest
 
-from keras.layers import Dense, Input
-from keras.models import Model, Sequential
+from tensorflow.keras.layers import Dense, Input
+from tensorflow.keras.models import Model, Sequential
 import numpy as np
 
 from importance_sampling.utils import keras_utils

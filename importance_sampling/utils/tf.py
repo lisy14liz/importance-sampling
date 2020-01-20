@@ -3,7 +3,7 @@
 # Written by Angelos Katharopoulos <angelos.katharopoulos@idiap.ch>
 #
 
-from keras import backend as K
+from tensorflow.keras import backend as K
 
 tf = None
 if K.backend() == "tensorflow":
