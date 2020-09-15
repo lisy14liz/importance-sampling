@@ -18,7 +18,7 @@ from threading import Condition, Lock, Thread
 from tensorflow.keras.applications.resnet50 import preprocess_input
 from tensorflow.keras.datasets import cifar10, cifar100, mnist
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-import tensorflow.keras.utils
+from tensorflow.keras.utils import Progbar
 import numpy as np
 
 from .utils.functional import compose
@@ -515,7 +515,7 @@ class AugmentedImages(BaseDataset):
 
 
 class OntheflyAugmentedImages(BaseDataset):
-    """Use a Keras ImageDataGenerator to augment images on the fly in a
+    """Use a tensorflow.keras ImageDataGenerator to augment images on the fly in a
     determenistic way."""
     def __init__(self, dataset, augmentation_params, N=None, random_state=0,
                  cache_size=None):
@@ -599,11 +599,11 @@ class OntheflyAugmentedImages(BaseDataset):
 
 class PennTreeBank(BaseDataset):
     """Load the PennTreebank from Tomas Mikolov's format expected in the
-    default Keras directory."""
+    default tensorflow.keras directory."""
     def __init__(self, context, ptb_path=None, val=True, verbose=True,
                  cache=True):
         if ptb_path is None:
-            ptb_path = path.expanduser("~/.keras/datasets/ptb")
+            ptb_path = path.expanduser("~/.tensorflow.keras/datasets/ptb")
 
         if val:
             test = "valid"
@@ -632,7 +632,7 @@ class PennTreeBank(BaseDataset):
 
             # Encode the strings to numbers
             if verbose:
-                prog = tensorflow.keras.utils.Progbar(len(train) + len(test))
+                prog = Progbar(len(train) + len(test))
             for i, s in enumerate(train):
                 xi, yi = self._encode(s, V, context)
                 x_train = np.vstack([x_train, xi])

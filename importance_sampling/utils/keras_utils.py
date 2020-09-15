@@ -8,7 +8,7 @@ from math import ceil
 
 import h5py
 from tensorflow.keras import backend as K
-from tensorflow.keras.utils import Sequence
+from tensorflow.keras.utils.data_utils import Sequence
 import numpy as np
 
 
@@ -63,7 +63,7 @@ def load_weights_by_name(f, layers):
 
 
 class DatasetSequence(Sequence):
-    """Implement the Keras Sequence interface from a BaseDataset interface."""
+    """Implement the tensorflow.keras Sequence interface from a BaseDataset interface."""
     def __init__(self, dataset, train=True, part=slice(None), batch_size=32):
         self._data = dataset.train_data if train else dataset.test_data
         self._idxs = np.arange(len(self._data))[part]

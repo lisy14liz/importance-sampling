@@ -5,8 +5,7 @@
 
 import sys
 
-from tensorflow.python.keras.callbacks import CallbackList
-from tensorflow.keras.callbacks import BaseLogger, History, ProgbarLogger
+from tensorflow.keras.callbacks import BaseLogger, CallbackList, History, ProgbarLogger
 from tensorflow.keras.layers import Dropout, BatchNormalization
 from tensorflow.keras.utils import Sequence
 import numpy as np
@@ -27,7 +26,7 @@ class _BaseImportanceTraining(object):
 
         Arguments
         ---------
-            model: The Keras model to train
+            model: The tensorflow.keras model to train
         """
         # Wrap and transform the model so that it outputs the importance scores
         # and can be used in an importance sampling training scheme
@@ -86,9 +85,9 @@ class _BaseImportanceTraining(object):
             batch_size: int, number of samples per gradient update
             epochs: int, number of times to iterate over the entire
                     training set
-            verbose: {0, >0}, whether to employ the progress bar Keras
+            verbose: {0, >0}, whether to employ the progress bar tensorflow.keras
                      callback or not
-            callbacks: list of Keras callbacks to be called during training
+            callbacks: list of tensorflow.keras callbacks to be called during training
             validation_split: float in [0, 1), percentage of data to use for
                               evaluation
             validation_data: tuple of numpy arrays, Data to evaluate the
@@ -99,7 +98,7 @@ class _BaseImportanceTraining(object):
             on_scores: callable that accepts the sampler and scores
         Returns
         -------
-            A Keras `History` object that contains information collected during
+            A tensorflow.keras `History` object that contains information collected during
             training.
         """
         # Create two data tuples from the given x, y, validation_*
@@ -159,7 +158,7 @@ class _BaseImportanceTraining(object):
                              generator at each call)
             epochs: int, multiplied by steps_per_epoch denotes the total number
                     of gradient updates
-            verbose: {0, >0}, whether to use the progress bar Keras callback
+            verbose: {0, >0}, whether to use the progress bar tensorflow.keras callback
             validation_data: generator or tuple (inputs, targets)
             validation_steps: None or int, used only if validation_data is a
                               generator
@@ -221,9 +220,9 @@ class _BaseImportanceTraining(object):
                              to be `len(dataset.train_data) / batch_size`.
             batch_size: int, number of samples per gradient update
             epochs: int, number of times to iterate `steps_per_epoch` times
-            verbose: {0, >0}, whether to employ the progress bar Keras
+            verbose: {0, >0}, whether to employ the progress bar tensorflow.keras
                      callback or not
-            callbacks: list of Keras callbacks to be called during training
+            callbacks: list of tensorflow.keras callbacks to be called during training
             on_sample: callable that accepts the sampler, idxs, w, scores
             on_scores: callable that accepts the sampler and scores
         """
@@ -270,8 +269,11 @@ class _BaseImportanceTraining(object):
 
                 # Importance sampling is done here
                 idxs, (x, y), w = sampler.sample(batch_size)
+#                 print('idxs',idxs)
+#                 print('w',w.T)
                 # Train on the sampled data
                 loss, metrics, scores = self.model.train_batch(x, y, w)
+
                 # Update the sampler
                 sampler.update(idxs, scores)
 
@@ -350,7 +352,7 @@ class ImportanceTraining(_UnbiasedImportanceTraining):
 
     Arguments
     ---------
-        model: The Keras model to train
+        model: The tensorflow.keras model to train
         presample: float, the number of samples to presample for scoring
                    given as a factor of the batch size
         tau_th: float or None, the variance reduction threshold after which we
@@ -399,7 +401,7 @@ class ConstantVarianceImportanceTraining(_UnbiasedImportanceTraining):
 
     Arguments
     ---------
-        model: The Keras model to train
+        model: The tensorflow.keras model to train
         score: {"gnorm", "loss", "full_gnorm"}, the importance metric to use
                for importance sampling
         layer: None or int or Layer, the layer to compute the gnorm with
@@ -431,7 +433,7 @@ class ConstantTimeImportanceTraining(_UnbiasedImportanceTraining):
 
     Arguments
     ---------
-        model: The Keras model to train
+        model: The tensorflow.keras model to train
         score: {"gnorm", "loss", "full_gnorm"}, the importance metric to use
                for importance sampling
         layer: None or int or Layer, the layer to compute the gnorm with
@@ -460,7 +462,7 @@ class BiasedImportanceTraining(_BaseImportanceTraining):
 
     Arguments
     ---------
-        model: The Keras model to train
+        model: The tensorflow.keras model to train
         k: float in (-oo, 1], controls the bias of the training that focuses
            the network on the hard examples (see paper)
         smooth: float, influences the sampling distribution towards uniform by
@@ -513,7 +515,7 @@ class ApproximateImportanceTraining(_BaseImportanceTraining):
 
     Arguments
     ---------
-        model: The Keras model to train
+        model: The tensorflow.keras model to train
         k: float in (-oo, 1], controls the bias of the training that focuses
            the network on the hard examples (see paper)
         smooth: float, influences the sampling distribution towards uniform by
@@ -574,7 +576,7 @@ class SVRG(_BaseImportanceTraining):
 
     Arguments
     ---------
-        model: The Keras model to train
+        model: The tensorflow.keras model to train
         B: float, the number of samples to use for estimating the average
            gradient (whole dataset used in case of 0). Given as a factor of the
            batch_size.

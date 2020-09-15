@@ -25,12 +25,12 @@ class MetricLayer(Layer):
         return None
 
     def build(self, input_shape):
-        # Special care for accuracy because keras treats it specially
+        # Special care for accuracy because tensorflow.keras treats it specially
         try:
             if "acc" in self.metric_func:
                 self.metric_func = self._generic_accuracy
         except TypeError:
-            pass # metric_func is not a string
+            pass # metric_func is not a string=
         self.metric_func = compose(K.expand_dims, get_metric(self.metric_func))
 
         super(MetricLayer, self).build(input_shape)

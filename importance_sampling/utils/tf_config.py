@@ -3,13 +3,13 @@
 # Written by Angelos Katharopoulos <angelos.katharopoulos@idiap.ch>
 #
 
-"""This module aims to configure the Keras tensorflow session based on
+"""This module aims to configure the tensorflow.keras tensorflow session based on
 environment variables or other sources"""
 
 from multiprocessing import cpu_count
 import os
 
-from keras import backend as K
+from tensorflow.keras import backend as K
 from .tf import tf
 
 

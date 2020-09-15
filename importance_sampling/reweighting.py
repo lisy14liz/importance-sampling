@@ -13,7 +13,7 @@ class ReweightingPolicy(object):
     importance.
     
     Each policy should provide
-        1. A layer implementation for use with Keras models
+        1. A layer implementation for use with tensorflow.keras models
         2. A python implementation for use with the samplers
     """
     def weight_layer(self):
@@ -120,7 +120,7 @@ class CorrectingReweightingPolicy(ReweightingPolicy):
 
 
 class AdjustedBiasedReweighting(Layer):
-    """Implement a Keras layer that using the sum of the weights and the number
+    """Implement a tensorflow.keras layer that using the sum of the weights and the number
     of samples it recomputes the weights.
     
     The specifics are the following:

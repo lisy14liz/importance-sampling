@@ -4,7 +4,7 @@
 #
 
 from tensorflow.keras import backend as K
-from tensorflow.compat.v1.keras.layers import    \
+from tensorflow.keras.layers import    \
     Activation,             \
     AveragePooling2D,       \
     BatchNormalization,     \

@@ -3,9 +3,9 @@
 # Written by Angelos Katharopoulos <angelos.katharopoulos@idiap.ch>
 #
 
-"""Replace the models provided by the Keras applications module"""
+"""Replace the models provided by the tensorflow.keras applications module"""
 
-from tensorflow.compat.v1.keras.layers import \
+from tensorflow.keras.layers import \
     Activation,          \
     AveragePooling2D,    \
     Conv2D,              \
@@ -15,7 +15,7 @@ from tensorflow.compat.v1.keras.layers import \
     MaxPooling2D,        \
     add
 from tensorflow.keras.models import Model
-from tensorflow.keras.utils import get_file
+from tensorflow.keras.utils.data_utils import get_file
 
 from .layers import StatsBatchNorm
 

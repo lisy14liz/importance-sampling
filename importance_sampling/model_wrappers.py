@@ -192,7 +192,6 @@ class OracleWrapper(ModelWrapper):
                 config = model.layers[-1].get_config()
                 if config.get("activation", "linear") != "linear":
                     sys.stderr.write(self.FUSED_ACTIVATION_WARNING)
-
             return model.layers[last_layer]
         except:
             # In case of an error then probably we are not using the gnorm
@@ -203,7 +202,7 @@ class OracleWrapper(ModelWrapper):
         # Extract some info from the model
         loss = model.loss
         optimizer = model.optimizer.__class__(**model.optimizer.get_config())
-        output_shape = model.get_output_shape_at(0)[1:]
+        output_shape = model.layers[-1].get_output_shape_at(0)[1:]
         if isinstance(loss, str) and loss.startswith("sparse"):
             output_shape = output_shape[:-1] + (1,)
 
@@ -217,11 +216,11 @@ class OracleWrapper(ModelWrapper):
         pred_score = Input(shape=(reweighting.weight_size,))
 
         # Create a loss layer and a score layer
-        loss_tensor = LossLayer(loss)([y_true, model.get_output_at(0)])
+        loss_tensor = LossLayer(loss)([y_true, model.layers[-1].get_output_at(0)])
         score_tensor = _get_scoring_layer(
             score,
             y_true,
-            model.get_output_at(0),
+            model.layers[-1].get_output_at(0),
             loss,
             self.layer,
             model
@@ -237,20 +236,33 @@ class OracleWrapper(ModelWrapper):
         weighted_loss_mean = K.mean(weighted_loss)
 
         # Create the metric layers
-        metrics = model.metrics or []
+        def name(x):
+            if isinstance(x, str):
+                return x
+            if hasattr(x, "name"):
+                return x.name
+            if hasattr(x, "__name__"):
+                return x.__name__
+            return str(x)
+        metrics = [name(m) for m in model.metrics] or []
+
         metrics = [
-            MetricLayer(metric)([y_true, model.get_output_at(0)])
+            MetricLayer(metric)([y_true, model.layers[-1].get_output_at(0)])
             for metric in metrics
         ]
 
         # Create a model for plotting and providing access to things such as
         # trainable_weights etc.
+#         new_model = Model(
+#             inputs=_tolist(model.get_input_at(0)) + [y_true, pred_score],
+#             outputs=[weighted_loss_model]
+#         )
         new_model = Model(
-            inputs=_tolist(model.get_input_at(0)) + [y_true, pred_score],
+            inputs=_tolist(model.layers[0].get_input_at(0)) + [y_true, pred_score],
             outputs=[weighted_loss_model]
         )
 
-        # Build separate on_batch keras functions for scoring and training
+        # Build separate on_batch tensorflow.keras functions for scoring and training
         updates = optimizer.get_updates(
             weighted_loss_mean,
             new_model.trainable_weights
@@ -259,9 +271,12 @@ class OracleWrapper(ModelWrapper):
         if hasattr(model, "metrics_updates"):
             metrics_updates = model.metrics_updates
         learning_phase = []
-        if tf.keras.backend.learning_phase():
-            learning_phase.append(K.learning_phase())
-        inputs = _tolist(model.get_input_at(0)) + [y_true, pred_score] + \
+        try:
+            if weighted_loss_model._uses_learning_phase:
+                learning_phase.append(K.learning_phase())
+        except:
+            pass
+        inputs = _tolist(model.layers[0].get_input_at(0)) + [y_true, pred_score] + \
             learning_phase
         outputs = [
             weighted_loss_mean,
@@ -295,7 +310,6 @@ class OracleWrapper(ModelWrapper):
         outputs = self._evaluate_on_batch(inputs)
 
         signal("is.evaluate_batch").send(outputs)
-
         return np.hstack([outputs[self.LOSS]] + outputs[self.METRIC0:])
 
     def score_batch(self, x, y):
@@ -336,7 +350,7 @@ class SVRGWrapper(ModelWrapper):
 
         # Extract info from the model
         loss_function = model.loss
-        output_shape = model.get_output_shape_at(0)[1:]
+        output_shape = model.layers[-1].get_output_shape_at(0)[1:]
 
         # Create two identical models one with the current weights and one with
         # the snapshot of the weights
@@ -346,7 +360,7 @@ class SVRGWrapper(ModelWrapper):
         # Create the target variable and compute the losses and the metrics
         inputs = [
             Input(shape=K.int_shape(x)[1:])
-            for x in _tolist(model.get_input_at(0))
+            for x in _tolist(model.layers[0].get_input_at(0))
         ]
         model_output = self.model(inputs)
         snapshot_output = self._snapshot(inputs)
@@ -381,7 +395,7 @@ class SVRGWrapper(ModelWrapper):
         if hasattr(self.model, "metrics_updates"):
             metrics_updates = self.model.metrics_updates
         learning_phase = []
-        if tf.keras.backend.learning_phase():
+        if loss._uses_learning_phase:
             learning_phase.append(K.learning_phase())
         inputs = inputs + [y_true] + learning_phase
         outputs = [loss_mean, loss] + metrics

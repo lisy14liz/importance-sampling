@@ -70,6 +70,8 @@ class BaseSampler(object):
         idxs1, scores, xy = self._get_samples_with_scores(batch_size)
 
         # Sample from the available ones
+        if abs(scores.sum())<1e-5:
+            scores=np.ones(scores.shape)
         p = scores / scores.sum() if scores is not None else None
         idxs2 = np.random.choice(len(idxs1), batch_size, p=p)
         w = self.reweighting.sample_weights(idxs2, scores)
@@ -481,19 +483,24 @@ class ConditionalStartSampler(SamplerDecorator):
         # create a uniform sampler to sample from when the condition is not met
         self.uniform = UniformSampler(sampler.dataset, sampler.reweighting)
         self.condition = condition
+        self.debug_count_satisfied=0
+        self.debug_count=0
 
         super(ConditionalStartSampler, self).__init__(sampler)
 
     def _get_samples_with_scores(self, batch_size):
+        self.debug_count+=1
         if self.condition.satisfied:
             idxs, scores, xy = \
                 self.sampler._get_samples_with_scores(batch_size)
             self.condition.update(scores)
+            self.debug_count_satisfied+=1
         else:
             idxs, scores, xy = \
                 self.uniform._get_samples_with_scores(batch_size)
             if scores is None:
                 scores = np.ones(len(idxs))
+        print('self.debug_count,self.debug_count_satisfied: ',self.debug_count,self.debug_count_satisfied)
 
         return (
             idxs,
@@ -637,6 +644,7 @@ class VarianceReductionCondition(Condition):
     @property
     def satisfied(self):
         self._previous_vr = self._vr
+        print('self._vr,self._vr_th',self._vr,self._vr_th)
         return self._vr > self._vr_th
 
     @property

@@ -6,8 +6,9 @@
 from functools import reduce
 
 from tensorflow.keras import backend as K
-import tensorflow.keras.losses
+from tensorflow.keras import losses
 from tensorflow.keras.layers import Layer
+import tensorflow as tf
 
 
 def _per_sample_loss(loss_function, mask, x):
@@ -51,7 +52,7 @@ class LossLayer(Layer):
     """
     def __init__(self, loss, **kwargs):
         self.supports_masking = True
-        self.loss = tensorflow.keras.losses.get(loss)
+        self.loss = losses.get(loss)
 
         super(LossLayer, self).__init__(**kwargs)
 
@@ -80,7 +81,7 @@ class GradientNormLayer(Layer):
     two inputs.
     
     # Arguments
-        parameter_list: A list of Keras variables to compute the gradient
+        parameter_list: A list of tensorflow.keras variables to compute the gradient
                         norm for
         loss: The loss function to use to combine the model output and the
               target into a scalar and then compute the gradient norm
@@ -91,7 +92,7 @@ class GradientNormLayer(Layer):
     def __init__(self, parameter_list, loss, fast=False, **kwargs):
         self.supports_masking = True
         self.parameter_list = parameter_list
-        self.loss = tensorflow.keras.losses.get(loss)
+        self.loss = losses.get(loss)
         self.fast = fast
 
         super(GradientNormLayer, self).__init__(**kwargs)
@@ -113,14 +114,15 @@ class GradientNormLayer(Layer):
     def call(self, x, mask=None):
         # x should be an output and a target
         assert len(x) == 2
-
         losses = _per_sample_loss(self.loss, mask, x)
+
         if self.fast:
             grads = K.sqrt(sum([
                 self._sum_per_sample(K.square(g))
-                for g in K.gradients(losses, self.parameter_list)
+                for g in tf.gradients(losses, self.parameter_list)
             ]))
         else:
+            
             nb_samples = K.shape(losses)[0]
             grads = K.map_fn(
                 lambda i: self._grad_norm(losses[i]),
@@ -133,7 +135,7 @@ class GradientNormLayer(Layer):
     def _sum_per_sample(self, x):
         """Sum across all the dimensions except the batch dim"""
         # Instead we might be able to use x.ndims but there have been problems
-        # with ndims and Keras so I think len(int_shape()) is more reliable
+        # with ndims and tensorflow.keras so I think len(int_shape()) is more reliable
         dims = len(K.int_shape(x))
         return K.sum(x, axis=list(range(1, dims)))
 
