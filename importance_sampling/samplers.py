@@ -6,6 +6,7 @@
 from functools import partial
 
 from blinker import signal
+import tensorflow as tf
 from tensorflow.keras.layers import Dense, Embedding, Flatten, Input, LSTM, Masking, \
     concatenate
 from tensorflow.keras.models import Model
@@ -500,7 +501,7 @@ class ConditionalStartSampler(SamplerDecorator):
                 self.uniform._get_samples_with_scores(batch_size)
             if scores is None:
                 scores = np.ones(len(idxs))
-        print('self.debug_count,self.debug_count_satisfied: ',self.debug_count,self.debug_count_satisfied)
+        # print('self.debug_count,self.debug_count_satisfied: ',self.debug_count,self.debug_count_satisfied)
 
         return (
             idxs,
@@ -644,7 +645,7 @@ class VarianceReductionCondition(Condition):
     @property
     def satisfied(self):
         self._previous_vr = self._vr
-        print('self._vr,self._vr_th',self._vr,self._vr_th)
+        # print('self._vr,self._vr_th',self._vr,self._vr_th)
         return self._vr > self._vr_th
 
     @property
@@ -652,13 +653,14 @@ class VarianceReductionCondition(Condition):
         return self._previous_vr > self._vr_th
 
     def update(self, scores):
-        u = 1.0/len(scores)
-        S = scores.sum()
+        u = 1.0/scores.shape[0]
+        S = tf.math.reduce_sum(scores)
         if S == 0:
             g = np.array(u)
         else:
             g = scores/S
-        new_vr = 1.0 / np.sqrt(1 - ((g-u)**2).sum()/(g**2).sum())
+#         new_vr = 1.0 / np.sqrt(1 - ((g-u)**2).sum()/(g**2).sum())
+        new_vr = 1.0 / np.sqrt(1 - tf.math.reduce_sum((g-u)**2)/tf.math.reduce_sum(g**2))
         self._vr = (
             self._momentum * self._vr +
             (1-self._momentum) * new_vr

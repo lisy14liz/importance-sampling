@@ -5,6 +5,7 @@
 
 import sys
 
+import tensorflow as tf
 from tensorflow.keras.callbacks import BaseLogger, CallbackList, History, ProgbarLogger
 from tensorflow.keras.layers import Dropout, BatchNormalization
 from tensorflow.keras.utils import Sequence
@@ -30,11 +31,14 @@ class _BaseImportanceTraining(object):
         """
         # Wrap and transform the model so that it outputs the importance scores
         # and can be used in an importance sampling training scheme
+        tape = tf.GradientTape(persistent=True)
+        # tape.__exit__(None,None,None)
         self._check_model(model)
         self.original_model = model
         self.model = OracleWrapper(
             model,
             self.reweighting,
+            tape,
             score=score,
             layer=layer
         )
@@ -273,7 +277,12 @@ class _BaseImportanceTraining(object):
 #                 print('w',w.T)
                 # Train on the sampled data
                 loss, metrics, scores = self.model.train_batch(x, y, w)
-
+                # print('x',x)
+                # print('y',y)
+                # print('w',w.reshape((-1,))
+                # print('loss',loss.reshape((-1,)))
+                # print('metrics', [metric.reshape((-1,)) for metric in metrics])
+                # print('scores', [metric.reshape((-1,)) for metric in scores])
                 # Update the sampler
                 sampler.update(idxs, scores)
 

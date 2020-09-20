@@ -50,9 +50,10 @@ class LossLayer(Layer):
         loss: The loss function to use to combine the model output and the
               target
     """
-    def __init__(self, loss, **kwargs):
+    def __init__(self, loss, tape, **kwargs):
         self.supports_masking = True
         self.loss = losses.get(loss)
+        self.tape = tape
 
         super(LossLayer, self).__init__(**kwargs)
 
@@ -89,11 +90,12 @@ class GradientNormLayer(Layer):
               each sample only affects one part of the parameter list so we can
               use the batch mode to compute the gradient
     """
-    def __init__(self, parameter_list, loss, fast=False, **kwargs):
+    def __init__(self, parameter_list, loss, tape, fast=False, **kwargs):
         self.supports_masking = True
         self.parameter_list = parameter_list
         self.loss = losses.get(loss)
         self.fast = fast
+        self.tape = tape
 
         super(GradientNormLayer, self).__init__(**kwargs)
 
@@ -114,15 +116,22 @@ class GradientNormLayer(Layer):
     def call(self, x, mask=None):
         # x should be an output and a target
         assert len(x) == 2
+        
+        if not self.tape._recording:
+            self.tape.__enter__()
+            self.tape.watch(self.parameter_list)
+        print('tape record',[v.name for v in self.tape.watched_variables()])
+        print('self.parameter_list',self.parameter_list)
+        print('self.loss',self.loss)
         losses = _per_sample_loss(self.loss, mask, x)
+        # self.tape.__exit__(None,None,None)
 
         if self.fast:
             grads = K.sqrt(sum([
-                self._sum_per_sample(K.square(g))
-                for g in tf.gradients(losses, self.parameter_list)
-            ]))
+                self._sum_per_sample(K.square(g)) if g is not None else tf.constant([0],dtype=tf.int32)
+                for g in self.tape.gradient(losses, self.parameter_list)
+            ])) if self.tape.gradient(losses, self.parameter_list) is not None else [tf.constant([0],dtype=tf.int32)]
         else:
-            
             nb_samples = K.shape(losses)[0]
             grads = K.map_fn(
                 lambda i: self._grad_norm(losses[i]),
@@ -130,6 +139,7 @@ class GradientNormLayer(Layer):
                 dtype=K.floatx()
             )
 
+        print('K.reshape(grads, (-1, 1))',self.tape.gradient(losses, self.parameter_list),K.reshape(grads, (-1, 1)))
         return K.reshape(grads, (-1, 1))
 
     def _sum_per_sample(self, x):

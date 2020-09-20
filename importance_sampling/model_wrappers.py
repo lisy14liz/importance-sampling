@@ -9,7 +9,7 @@ import sys
 from blinker import signal
 import tensorflow as tf
 from tensorflow.keras import backend as K
-from tensorflow.keras.layers import Input, Layer, multiply
+from tensorflow.keras.layers import Input, Layer, multiply, Lambda
 from tensorflow.keras.models import Model, clone_model
 import numpy as np
 
@@ -24,14 +24,14 @@ def _tolist(x, acceptable_iterables=(list, tuple)):
     return x
 
 
-def _get_scoring_layer(score, y_true, y_pred, loss="categorical_crossentropy",
+def _get_scoring_layer(score, y_true, y_pred, tape, loss="categorical_crossentropy",
                        layer=None, model=None):
     """Get a scoring layer that computes the score for each pair of y_true,
     y_pred"""
     assert score in ["loss", "gnorm", "full_gnorm", "acc"]
 
     if score == "loss":
-        return LossLayer(loss)([
+        return LossLayer(loss,tape)([
             y_true,
             y_pred
         ])
@@ -39,6 +39,7 @@ def _get_scoring_layer(score, y_true, y_pred, loss="categorical_crossentropy",
         return GradientNormLayer(
             layer.output,
             loss,
+            tape,
             fast=True
         )([
             y_true,
@@ -161,9 +162,10 @@ class OracleWrapper(ModelWrapper):
                                 "use a separate activation layer (see "
                                 "examples).\n")
 
-    def __init__(self, model, reweighting, score="loss", layer=None):
+    def __init__(self, model, reweighting, tape, score="loss", layer=None):
         self.reweighting = reweighting
         self.layer = self._gnorm_layer(model, layer)
+        self.tape = tape
 
         # Augment the model with reweighting, scoring etc
         # Save the new model and the training functions in member variables
@@ -216,14 +218,15 @@ class OracleWrapper(ModelWrapper):
         pred_score = Input(shape=(reweighting.weight_size,))
 
         # Create a loss layer and a score layer
-        loss_tensor = LossLayer(loss)([y_true, model.layers[-1].get_output_at(0)])
+        loss_tensor = LossLayer(loss,self.tape)([y_true, model.layers[-1].get_output_at(0)])
         score_tensor = _get_scoring_layer(
             score,
             y_true,
             model.layers[-1].get_output_at(0),
+            self.tape,
             loss,
             self.layer,
-            model
+            model,
         )
 
         # Create the sample weights
@@ -231,9 +234,18 @@ class OracleWrapper(ModelWrapper):
 
         # Create the output
         weighted_loss = weighted_loss_model = multiply([loss_tensor, weights])
-        for l in model.losses:
-            weighted_loss += l
-        weighted_loss_mean = K.mean(weighted_loss)
+        # for l in model.losses:
+        #     weighted_loss += l
+        # weighted_loss_mean = K.mean(weighted_loss)
+
+        # use layers to represent outputs
+        def add_loss(weighted_loss):
+            for l in model.losses:
+                weighted_loss += l
+            return weighted_loss
+        weighted_loss=Lambda(add_loss)(weighted_loss)
+        weighted_loss_mean = Lambda(lambda x: K.mean(x))(weighted_loss)
+
 
         # Create the metric layers
         def name(x):
@@ -244,7 +256,7 @@ class OracleWrapper(ModelWrapper):
             if hasattr(x, "__name__"):
                 return x.__name__
             return str(x)
-        metrics = [name(m) for m in model.metrics] or []
+        metrics = [name(m) for m in model.compiled_metrics._metrics] or []
 
         metrics = [
             MetricLayer(metric)([y_true, model.layers[-1].get_output_at(0)])
@@ -285,16 +297,44 @@ class OracleWrapper(ModelWrapper):
             score_tensor
         ] + metrics
 
-        train_on_batch = K.function(
-            inputs=inputs,
-            outputs=outputs,
-            updates=updates + model.updates + metrics_updates
-        )
-        evaluate_on_batch = K.function(
-            inputs=inputs,
-            outputs=outputs,
-            updates=model.state_updates + metrics_updates
-        )
+        # train_on_batch = K.function(
+        #     inputs=inputs,
+        #     outputs=outputs,
+        #     # updates=updates + model.updates + metrics_updates
+        # )
+        # evaluate_on_batch = K.function(
+        #     inputs=inputs,
+        #     outputs=outputs,
+        #     updates=model.state_updates + metrics_updates
+        # )
+        # print('outputs',outputs)
+        block=Model(inputs=inputs,outputs=outputs)
+        def train_on_batch(inputs_tensor):
+            if not self.tape._recording:
+                self.tape.__enter__()
+            inputs_tensor=[tf.constant(input_tensor) for input_tensor in inputs_tensor]
+            self.tape.watch(block.weights)
+            output=block(inputs_tensor,training=True)
+            loss = output[1]
+            gradients = self.tape.gradient(loss, block.trainable_variables)
+            optimizer.apply_gradients(zip(gradients, block.trainable_variables))
+        
+            # TODO: investigate update_state
+            # train_loss.update_state(loss)
+            # train_metric.update_state(labels, predictions)
+
+            self.tape.__exit__(None,None,None)
+            output=[v.numpy() for v in output]
+            return output
+        def evaluate_on_batch(inputs_tensor):
+            if not self.tape._recording:
+                self.tape.__enter__()
+            inputs_tensor=[tf.constant(input_tensor) for input_tensor in inputs_tensor]
+            self.tape.watch(block.weights)
+            output=block(inputs_tensor,training=False)
+            self.tape.__exit__(None,None,None)
+            output=[v.numpy() for v in output]
+            return output
 
         self.model = new_model
         self.optimizer = optimizer
@@ -326,7 +366,11 @@ class OracleWrapper(ModelWrapper):
             y = np.expand_dims(y, axis=1)
 
         # train on a single batch
+        if not self.tape._recording:
+            self.tape.__enter__()
+            self.tape.watch(self.model.weights)
         outputs = self._train_on_batch(_tolist(x) + [y, w, 1])
+        self.tape.__exit__(None,None,None)
 
         # Add the outputs in a tuple to send to whoever is listening
         result = (
