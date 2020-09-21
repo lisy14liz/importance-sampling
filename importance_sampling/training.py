@@ -31,14 +31,11 @@ class _BaseImportanceTraining(object):
         """
         # Wrap and transform the model so that it outputs the importance scores
         # and can be used in an importance sampling training scheme
-        tape = tf.GradientTape(persistent=True)
-        # tape.__exit__(None,None,None)
         self._check_model(model)
         self.original_model = model
         self.model = OracleWrapper(
             model,
             self.reweighting,
-            tape,
             score=score,
             layer=layer
         )
