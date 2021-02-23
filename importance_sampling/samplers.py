@@ -496,6 +496,7 @@ class ConditionalStartSampler(SamplerDecorator):
                 self.sampler._get_samples_with_scores(batch_size)
             self.condition.update(scores)
             self.debug_count_satisfied+=1
+            # print('self.debug_count,self.debug_count_satisfied: ',self.debug_count,self.debug_count_satisfied)
         else:
             idxs, scores, xy = \
                 self.uniform._get_samples_with_scores(batch_size)

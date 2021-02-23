@@ -23,6 +23,8 @@ def _per_sample_loss(loss_function, mask, x):
         x: list/tuple of inputs to the loss
     """
     # Compute the loss
+    reduction=tf.keras.losses.Reduction.NONE
+    loss_function.reduction=reduction
     loss = loss_function(*x)
 
     # Apply masking if needed
@@ -113,7 +115,6 @@ class GradientNormLayer(Layer):
 
         return (input_shape[0][0], 1)
 
-    @tf.function
     def call(self, x, mask=None):
         # x should be an output and a target
         assert len(x) == 2
@@ -121,10 +122,12 @@ class GradientNormLayer(Layer):
         losses = _per_sample_loss(self.loss, mask, x)
 
         if self.fast:
+            if Config.tape is None:
+                print(Config.tape)
             grads = K.sqrt(sum([
                 self._sum_per_sample(K.square(g)) if g is not None else tf.constant([0],dtype=tf.int32)
                 for g in Config.tape.gradient(losses, self.parameter_list)
-            ])) if Config.tape.gradient(losses, self.parameter_list) is not None else [tf.constant([0],dtype=tf.int32)]
+            ])) if Config.tape is not None and Config.tape.gradient(losses, self.parameter_list) is not None else [tf.constant([0],dtype=tf.int32)]
         else:
             nb_samples = K.shape(losses)[0]
             grads = K.map_fn(
@@ -143,11 +146,10 @@ class GradientNormLayer(Layer):
         return K.sum(x, axis=list(range(1, dims)))
 
     def _grad_norm(self, loss):
-        grads = K.gradients(loss, self.parameter_list)
         return K.sqrt(
             sum([
-                K.sum(K.square(g))
-                for g in grads
+                K.sum(K.square(g)) if g is not None else tf.constant([0],dtype=tf.int32)
+                for g in Config.tape.gradient(loss, self.parameter_list)
             ])
-        )
+        ) if Config.tape is not None and Config.tape.gradient(losses, self.parameter_list) is not None else [tf.constant([0]*len(self.parameter_list),dtype=tf.int32)]
 
