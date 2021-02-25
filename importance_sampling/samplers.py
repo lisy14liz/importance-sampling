@@ -646,7 +646,9 @@ class VarianceReductionCondition(Condition):
     @property
     def satisfied(self):
         self._previous_vr = self._vr
-        # print('self._vr,self._vr_th',self._vr,self._vr_th)
+        # if self._vr > self._vr_th:
+        # if True:
+        #     print('self._vr,self._vr_th',self._vr,self._vr_th)
         return self._vr > self._vr_th
 
     @property
@@ -654,6 +656,7 @@ class VarianceReductionCondition(Condition):
         return self._previous_vr > self._vr_th
 
     def update(self, scores):
+        # print('scores',scores)
         u = 1.0/scores.shape[0]
         S = tf.math.reduce_sum(scores)
         if S == 0:

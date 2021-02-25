@@ -74,10 +74,8 @@ class LossLayer(Layer):
         # (None, 1) because all losses should be scalar
         return (input_shape[0][0], 1)
 
-    @tf.function
     def call(self, x, mask=None):
         return _per_sample_loss(self.loss, mask, x)
-
 
 class GradientNormLayer(Layer):
     """GradientNormLayer aims to output the gradient norm given a list of
@@ -93,9 +91,8 @@ class GradientNormLayer(Layer):
               each sample only affects one part of the parameter list so we can
               use the batch mode to compute the gradient
     """
-    def __init__(self, parameter_list, loss, fast=False, **kwargs):
+    def __init__(self, loss, fast=False, **kwargs):
         self.supports_masking = True
-        self.parameter_list = parameter_list
         self.loss = losses.get(loss)
         self.fast = fast
 
@@ -118,16 +115,13 @@ class GradientNormLayer(Layer):
     def call(self, x, mask=None):
         # x should be an output and a target
         assert len(x) == 2
-        
         losses = _per_sample_loss(self.loss, mask, x)
-
+        print([g for g in K.gradients(losses, self.parameter_list)])
         if self.fast:
-            if Config.tape is None:
-                print(Config.tape)
             grads = K.sqrt(sum([
-                self._sum_per_sample(K.square(g)) if g is not None else tf.constant([0],dtype=tf.int32)
-                for g in Config.tape.gradient(losses, self.parameter_list)
-            ])) if Config.tape is not None and Config.tape.gradient(losses, self.parameter_list) is not None else [tf.constant([0],dtype=tf.int32)]
+                self._sum_per_sample(K.square(g))
+                for g in K.gradients(losses, self.parameter_list)
+            ]))
         else:
             nb_samples = K.shape(losses)[0]
             grads = K.map_fn(
@@ -151,5 +145,6 @@ class GradientNormLayer(Layer):
                 K.sum(K.square(g)) if g is not None else tf.constant([0],dtype=tf.int32)
                 for g in Config.tape.gradient(loss, self.parameter_list)
             ])
-        ) if Config.tape is not None and Config.tape.gradient(losses, self.parameter_list) is not None else [tf.constant([0]*len(self.parameter_list),dtype=tf.int32)]
+        )
+        #  if Config.tape is not None and Config.tape.gradient(losses, self.parameter_list) is not None else [tf.constant([0]*len(self.parameter_list),dtype=tf.int32)]
 

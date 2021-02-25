@@ -24,7 +24,6 @@ def _tolist(x, acceptable_iterables=(list, tuple)):
         x = [x]
     return x
 
-
 def _get_scoring_layer(score, y_true, y_pred, loss="categorical_crossentropy",
                        layer=None, model=None):
     """Get a scoring layer that computes the score for each pair of y_true,
@@ -32,35 +31,54 @@ def _get_scoring_layer(score, y_true, y_pred, loss="categorical_crossentropy",
     assert score in ["loss", "gnorm", "full_gnorm", "acc"]
 
     if score == "loss":
-        return LossLayer(loss)([
-            y_true,
-            y_pred
-        ])
+        return LossLayer(loss)
     elif score == "gnorm":
         return GradientNormLayer(
-            layer.output,
             loss,
             fast=True
-        )([
-            y_true,
-            y_pred
-        ])
+        )
     elif score == "full_gnorm":
         return GradientNormLayer(
             model.trainable_weights,
             loss,
             fast=False
-        )([
-            y_true,
-            y_pred
-        ])
+        )
     elif score == "acc":
-        return LossLayer(categorical_accuracy)([
-            y_true,
-            y_pred
-        ])
+        return LossLayer(categorical_accuracy)
+FUSED_ACTIVATION_WARNING = ("[WARNING]: The last layer has a fused "
+                            "activation i.e. Dense(..., "
+                            "activation=\"sigmoid\").\nIn order for the "
+                            "preactivation to be automatically extracted "
+                            "use a separate activation layer (see "
+                            "examples).\n")
+def _gnorm_layer(model, layer):
+    # If we were given a layer then use it directly
+    if isinstance(layer, Layer):
+        return layer
 
+    # If we were given a layer index extract the layer
+    if isinstance(layer, int):
+        return model.layers[layer]
 
+    try:
+        # Get the last or the previous to last layer depending on wether
+        # the last has trainable weights
+        skip_one = not bool(model.layers[-1].trainable_weights)
+        last_layer = -2 if skip_one else -1
+
+        # If the last layer has trainable weights that means that we cannot
+        # automatically extract the preactivation tensor so we have to warn
+        # them because they might be missing out or they might not even
+        # have noticed
+        if last_layer == -1:
+            config = model.layers[-1].get_config()
+            if config.get("activation", "linear") != "linear":
+                sys.stderr.write(FUSED_ACTIVATION_WARNING)
+        return model.layers[last_layer]
+    except:
+        # In case of an error then probably we are not using the gnorm
+        # importance
+        return None
 class ModelWrapper(object):
     """The goal of the ModelWrapper is to take a NN and add some extra layers
     that produce a score, a loss and the sample weights to perform importance
@@ -147,60 +165,11 @@ class ModelWrapperDecorator(ModelWrapper):
             model_wrapper = _getattr(self, "model_wrapper")
             return getattr(model_wrapper, name)
 
-
-class OracleWrapper(ModelWrapper):
-    AVG_LOSS = 0
-    LOSS = 1
-    WEIGHTED_LOSS = 2
-    SCORE = 3
-    METRIC0 = 4
-
-    FUSED_ACTIVATION_WARNING = ("[WARNING]: The last layer has a fused "
-                                "activation i.e. Dense(..., "
-                                "activation=\"sigmoid\").\nIn order for the "
-                                "preactivation to be automatically extracted "
-                                "use a separate activation layer (see "
-                                "examples).\n")
-
-    def __init__(self, model, reweighting, score="loss", layer=None):
-        self.reweighting = reweighting
-        self.layer = self._gnorm_layer(model, layer)
-
-        # Augment the model with reweighting, scoring etc
-        # Save the new model and the training functions in member variables
-        self._augment_model(model, score, reweighting)
-
-    def _gnorm_layer(self, model, layer):
-        # If we were given a layer then use it directly
-        if isinstance(layer, Layer):
-            return layer
-
-        # If we were given a layer index extract the layer
-        if isinstance(layer, int):
-            return model.layers[layer]
-
-        try:
-            # Get the last or the previous to last layer depending on wether
-            # the last has trainable weights
-            skip_one = not bool(model.layers[-1].trainable_weights)
-            last_layer = -2 if skip_one else -1
-
-            # If the last layer has trainable weights that means that we cannot
-            # automatically extract the preactivation tensor so we have to warn
-            # them because they might be missing out or they might not even
-            # have noticed
-            if last_layer == -1:
-                config = model.layers[-1].get_config()
-                if config.get("activation", "linear") != "linear":
-                    sys.stderr.write(self.FUSED_ACTIVATION_WARNING)
-            return model.layers[last_layer]
-        except:
-            # In case of an error then probably we are not using the gnorm
-            # importance
-            return None
-
-    def _augment_model(self, model, score, reweighting):
-        # Extract some info from the model
+class ImportanceSamplingBlock(tf.keras.Model):
+    def __init__(self, model, score, reweighting, layer):
+        super(ImportanceSamplingBlock, self).__init__()
+        self.layer = _gnorm_layer(model, layer)
+        self.model = model
         loss = model.loss
         optimizer = model.optimizer.__class__(**model.optimizer.get_config())
         output_shape = model.layers[-1].get_output_shape_at(0)[1:]
@@ -210,40 +179,21 @@ class OracleWrapper(ModelWrapper):
         # Make sure that some stuff look ok
         assert not isinstance(loss, list)
 
-        # We need to create two more inputs
-        #   1. the targets
-        #   2. the predicted scores
         y_true = Input(shape=output_shape)
-        pred_score = Input(shape=(reweighting.weight_size,))
 
         # Create a loss layer and a score layer
-        loss_tensor = LossLayer(loss)([y_true, model.layers[-1].get_output_at(0)])
-        score_tensor = _get_scoring_layer(
+        self.loss_layer=LossLayer(loss)
+        self.score_layer=_get_scoring_layer(
             score,
             y_true,
             model.layers[-1].get_output_at(0),
             loss,
             self.layer,
             model,
-        )
+            )
 
         # Create the sample weights
-        weights = reweighting.weight_layer()([score_tensor, pred_score])
-
-        # Create the output
-        weighted_loss = weighted_loss_model = multiply([loss_tensor, weights])
-        for l in model.losses:
-            weighted_loss += l
-        weighted_loss_mean = K.mean(weighted_loss)
-
-        # # use layers to represent outputs
-        # def add_loss(weighted_loss):
-        #     for l in model.losses:
-        #         weighted_loss += l
-        #     return weighted_loss
-        # weighted_loss=Lambda(add_loss)(weighted_loss)
-        # weighted_loss_mean = Lambda(lambda x: K.mean(x))(weighted_loss)
-
+        self.weight_layer = reweighting.weight_layer()
 
         # Create the metric layers
         def name(x):
@@ -256,75 +206,59 @@ class OracleWrapper(ModelWrapper):
             return str(x)
         metrics = [name(m) for m in model.compiled_metrics._metrics] or []
 
-        metrics = [
-            MetricLayer(metric)([y_true, model.layers[-1].get_output_at(0)])
+        self.metric_layers = [
+            MetricLayer(metric)
             for metric in metrics
         ]
+        self.sub_model1 = tf.keras.models.Model(inputs=[model.input],outputs=[self.layer.output,model.output])
 
-        # Create a model for plotting and providing access to things such as
-        # trainable_weights etc.
-        new_model = Model(
-            inputs=_tolist(model.layers[0].get_input_at(0)) + [y_true, pred_score],
-            outputs=[weighted_loss_model]
-        )
 
-        # Build separate on_batch tensorflow.keras functions for scoring and training
-        # updates = optimizer.get_updates(
-        #     weighted_loss_mean,
-        #     new_model.trainable_weights
-        # )
-        # metrics_updates = []
-        if hasattr(model, "metrics_updates"):
-            metrics_updates = model.metrics_updates
-        learning_phase = []
-        try:
-            if weighted_loss_model._uses_learning_phase:
-                learning_phase.append(K.learning_phase())
-        except:
-            pass
-        inputs = _tolist(model.layers[0].get_input_at(0)) + [y_true, pred_score] + \
-            learning_phase
-        outputs = [
-            weighted_loss_mean,
-            loss_tensor,
-            weighted_loss,
-            score_tensor
-        ] + metrics
-
-        # train_on_batch = K.function(
-        #     inputs=inputs,
-        #     outputs=outputs,
-        #     # updates=updates + model.updates + metrics_updates
-        # )
-        # evaluate_on_batch = K.function(
-        #     inputs=inputs,
-        #     outputs=outputs,
-        #     updates=model.state_updates + metrics_updates
-        # )
-        # print('outputs',outputs)
-        block=Model(inputs=inputs,outputs=outputs)
-        @tf.function
-        def train_on_batch(inputs_tensor):
-            with tf.GradientTape(persistent=True) as tape:
-                Config.tape=tape
-                Config.tape.watch(block.weights)
-                output=block(inputs_tensor,training=True)
-                loss = output[1]
-            gradients = Config.tape.gradient(loss, block.trainable_variables)
-            optimizer.apply_gradients(zip(gradients, block.trainable_variables))
+    @tf.function
+    def call(self,input_tensor,training=False):
+        [model_input,y_true,pred_score]=_tolist(input_tensor)
+        [middle,y_pred]=self.sub_model1(model_input)
         
-            # TODO: investigate update_state
-            # train_loss.update_state(loss)
-            # train_metric.update_state(labels, predictions)
+        self.score_layer.parameter_list=middle
+        loss_tensor=self.loss_layer([y_true,y_pred])
+        score_tensor=self.score_layer([y_true,y_pred])
+        weights_tensor=self.weight_layer([score_tensor,pred_score])
+        weighted_loss = weighted_loss_model = multiply([loss_tensor, weights_tensor])
+        metrics=[l([y_true,y_pred]) for l in self.metric_layers]
+        for l in self.model.losses:
+            weighted_loss += l
+        weighted_loss_mean = K.mean(weighted_loss)
+        return [weighted_loss_mean, loss_tensor, weighted_loss, score_tensor]+metrics
 
+class OracleWrapper(ModelWrapper):
+    AVG_LOSS = 0
+    LOSS = 1
+    WEIGHTED_LOSS = 2
+    SCORE = 3
+    METRIC0 = 4
+
+    def __init__(self, model, reweighting, score="loss", layer=None):
+        self.reweighting = reweighting
+        self.layer = layer
+        # Augment the model with reweighting, scoring etc
+        # Save the new model and the training functions in member variables
+        self._augment_model(model, score, reweighting)
+
+    def _augment_model(self, model, score, reweighting):
+        optimizer = model.optimizer.__class__(**model.optimizer.get_config())
+        block=ImportanceSamplingBlock(model, score, reweighting, self.layer)
+        def train_on_batch(input_tensor):
+            with tf.GradientTape() as tape:
+                output=block(input_tensor,training=True)
+                loss=output[1]
+            gradients=tape.gradient(loss,block.trainable_variables)
+            optimizer.apply_gradients(zip(gradients,block.trainable_variables))
             return output
 
-        @tf.function
-        def evaluate_on_batch(inputs_tensor):
-            output=block(inputs_tensor,training=False)
-            return output
+        def evaluate_on_batch(input_tensor):
+            return block(input_tensor,training=False)
 
-        self.model = new_model
+        # self.model = new_model
+        self.model = model
         self.optimizer = optimizer
         self.model.optimizer = optimizer
         self._train_on_batch = train_on_batch
@@ -334,7 +268,7 @@ class OracleWrapper(ModelWrapper):
         if len(y.shape) == 1:
             y = np.expand_dims(y, axis=1)
         dummy_weights = np.ones((y.shape[0], self.reweighting.weight_size))
-        inputs = [tf.constant(input_tensor) for input_tensor in (_tolist(x) + [y, dummy_weights] + [0])]
+        inputs = [tf.constant(input_tensor) for input_tensor in (_tolist(x) + [y, dummy_weights])]
         outputs = self._evaluate_on_batch(inputs)
         outputs=[v.numpy() for v in outputs]
 
@@ -345,7 +279,7 @@ class OracleWrapper(ModelWrapper):
         if len(y.shape) == 1:
             y = np.expand_dims(y, axis=1)
         dummy_weights = np.ones((y.shape[0], self.reweighting.weight_size))
-        inputs = [tf.constant(input_tensor) for input_tensor in (_tolist(x) + [y, dummy_weights] + [0])]
+        inputs = [tf.constant(input_tensor) for input_tensor in (_tolist(x) + [y, dummy_weights])]
         
         outputs = self._evaluate_on_batch(inputs)
         outputs=[v.numpy() for v in outputs]
@@ -357,7 +291,7 @@ class OracleWrapper(ModelWrapper):
             y = np.expand_dims(y, axis=1)
 
         # train on a single batch
-        outputs = self._train_on_batch([tf.constant(input_tensor) for input_tensor in (_tolist(x) + [y, w, 1])])
+        outputs = self._train_on_batch([tf.constant(input_tensor) for input_tensor in (_tolist(x) + [y, w])])
         outputs=[v.numpy() for v in outputs]
 
         # Add the outputs in a tuple to send to whoever is listening
@@ -366,8 +300,8 @@ class OracleWrapper(ModelWrapper):
             outputs[self.METRIC0:],
             outputs[self.SCORE]
         )
-        signal("is.training").send(result)
 
+        signal("is.training").send(result)
         return result
 
 
